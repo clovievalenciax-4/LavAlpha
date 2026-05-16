@@ -60,8 +60,11 @@ logs/
 
 # screenshots / debug
 screenshot*.png
+screenshot*.jpg
+ref-*.png
 review-*.png
 gh_signup*.png
+# keep docs/ for README assets
 
 # editor
 .vscode/
