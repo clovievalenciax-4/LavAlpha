@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Caller {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  name      String?
+  platform  String   @default("x")
+  avatarUrl String?
+  bio       String?
+  score     Float    @default(0)   // credibility score 0-100
+  totalCalls Int     @default(0)
+  correctCalls Int   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  alphaCalls AlphaCall[]
+}
+
+model AlphaCall {
+  id          String   @id @default(cuid())
+  tweetId     String?  @unique
+  callerId    String
+  caller      Caller   @relation(fields: [callerId], references: [id])
+  
+  content     String   // raw tweet text
+  tokenName   String?  // detected token name
+  chain       String?  // ETH, SOL, BSC, BASE, etc
+  contractAddress String? // CA if detected
+  
+  priceAtMention Float?  // price when alpha was called
+  priceNow       Float?  // current price
+  priceChange    Float?  // % change since mention
+  
+  tweetUrl    String?
+  mentionedAt DateTime @default(now())
+  scrapedAt   DateTime @default(now())
+  
+  tags        String?  // comma-separated: "gem,alpha,micro-cap"
+  sentiment   String?  // "bullish", "bearish", "neutral"
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([callerId])
+  @@index([tokenName])
+  @@index([chain])
+  @@index([mentionedAt])
+}
+
+model ScrapeTarget {
+  id        String   @id @default(cuid())
+  username  String   @unique  // X username to scrape
+  isActive  Boolean  @default(true)
+  lastScrapedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AlphaProject {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  chain        String?
+  category     String?
+  website      String?
+  twitter      String?
+  discord      String?
+  contractAddress String?
+  vcs          String?
+  backers      String?
+  fundingStage String?
+  fundingAmount String?
+  launchDate   String?
+  stage        String?
+  score        Float    @default(0)
+  tweetUrl     String?
+  mentionedBy  String?
+  mentionedAt  DateTime?
+  tags         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([chain])
+  @@index([stage])
+  @@index([mentionedAt])
+}
