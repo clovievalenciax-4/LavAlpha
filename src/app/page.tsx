@@ -3,6 +3,27 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
+function MiniSparkline({ data, color = 'var(--accent)', w = 60, h = 20 }: { data: number[]; color?: string; w?: number; h?: number }) {
+  if (!data || data.length < 2) return null
+  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ')
+  return (
+    <svg width={w} height={h} style={{display:'block'}}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function DistBar({ segments }: { segments: { color: string; pct: number }[] }) {
+  return (
+    <div className="dist-bar">
+      {segments.filter(s => s.pct > 0).map((s, i) => (
+        <div key={i} className="dist-seg" style={{width:`${s.pct}%`,background:s.color}} />
+      ))}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null)
   const [projects, setProjects] = useState<any[]>([])
@@ -14,41 +35,23 @@ export default function Dashboard() {
       fetch('/api/stats').then(r => r.json()).catch(() => null),
       fetch('/api/projects').then(r => r.json()).catch(() => ({ projects: [] })),
       fetch('/api/alpha-calls?limit=8').then(r => r.json()).catch(() => ({ calls: [] })),
-    ]).then(([statsData, projData, callsData]) => {
-      setStats(statsData)
-      setProjects(projData.projects || [])
-      setCalls(callsData.calls || [])
+    ]).then(([s, p, c]) => {
+      setStats(s)
+      setProjects(p.projects || [])
+      setCalls(c.calls || [])
       setLoading(false)
     })
   }, [])
 
-  const stageColor = (stage: string) => {
-    switch (stage?.toLowerCase()) {
-      case 'testnet': return 'text-sky-400 bg-sky-500/10 border-sky-500/20'
-      case 'mainnet': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-      case 'building': return 'text-teal-400 bg-teal-500/10 border-teal-500/20'
-      case 'launch': return 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'
-      case 'stealth': return 'text-rose-400 bg-rose-500/10 border-rose-500/20'
-      default: return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20'
-    }
-  }
-
-  const categoryColor: Record<string, string> = {
-    AI: 'text-fuchsia-400 bg-fuchsia-500/10',
-    DeFi: 'text-emerald-400 bg-emerald-500/10',
-    NFT: 'text-amber-400 bg-amber-500/10',
-    Gaming: 'text-red-400 bg-red-500/10',
-    Infrastructure: 'text-blue-400 bg-blue-500/10',
-  }
-
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-[100px] card shimmer" />)}
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+          {[1,2,3,4].map(i => <div key={i} className="shimmer" style={{height:72,borderRadius:6}} />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-[200px] card shimmer" />)}
+        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12}}>
+          <div className="shimmer" style={{height:300,borderRadius:6}} />
+          <div className="shimmer" style={{height:300,borderRadius:6}} />
         </div>
       </div>
     )
@@ -58,156 +61,168 @@ export default function Dashboard() {
   const kolProjects = projects.filter(p => p.source === 'kol')
   const topProjects = [...projects].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 6)
 
+  const chainDist = stats?.chainDistribution || []
+  const totalChain = chainDist.reduce((a: number, c: any) => a + c._count, 0)
+  const chainColors: Record<string, string> = { SOLANA: '#a78bfa', ETHEREUM: '#3b82f6', BASE: '#22d3ee', BSC: '#eab308', ETH: '#3b82f6', SOL: '#a78bfa' }
+
+  const sentDist = stats?.sentimentDistribution || []
+  const totalSent = sentDist.reduce((a: number, c: any) => a + c._count, 0)
+
+  // Generate mock sparkline data from calls count
+  const sparkData = [12, 18, 15, 22, 28, 24, 31, 27, 35, 42, 38, stats?.last24h || 45]
+
   return (
-    <div className="space-y-6">
+    <div style={{display:'flex',flexDirection:'column',gap:16}}>
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Alpha Dashboard</h1>
-        <p className="text-[13px] text-zinc-500 mt-1">Early crypto projects · Smart follower signals · Real-time tracking</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="stat-cyan card p-4">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Fresh Projects</p>
-          <p className="text-2xl font-bold text-cyan-400 mt-1">{freshProjects.length}</p>
-          <p className="text-[11px] text-zinc-600 mt-1">New from X search</p>
+      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between'}}>
+        <div>
+          <h1 style={{fontSize:16,fontWeight:600,color:'var(--text-1)',letterSpacing:'-0.01em'}}>Dashboard</h1>
+          <p style={{fontSize:11,color:'var(--text-4)',marginTop:1}}>Crypto intelligence · {stats?.totalCalls || 0} calls tracked</p>
         </div>
-        <div className="stat-emerald card p-4">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider">KOL Signals</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">{kolProjects.length}</p>
-          <p className="text-[11px] text-zinc-600 mt-1">From KOL tweets</p>
-        </div>
-        <div className="stat-amber card p-4">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider">With Smart Followers</p>
-          <p className="text-2xl font-bold text-amber-400 mt-1">{freshProjects.filter(p => p.smartFollowerCount > 0).length}</p>
-          <p className="text-[11px] text-zinc-600 mt-1">KOL backed projects</p>
-        </div>
-        <div className="stat-rose card p-4">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Token Calls</p>
-          <p className="text-2xl font-bold text-rose-400 mt-1">{calls.length}</p>
-          <p className="text-[11px] text-zinc-600 mt-1">From DEXScreener</p>
+        <div style={{fontSize:10,color:'var(--text-5)'}}>
+          Last 24h: <span className="num" style={{color:'var(--text-2)'}}>{stats?.last24h || 0}</span>
         </div>
       </div>
 
-      {/* Main Content - Alpha Projects */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        
-        {/* Left: Top Alpha Projects */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-bold text-white">🔥 Top Alpha Projects</h2>
-            <Link href="/projects" className="text-[12px] text-cyan-400 hover:text-cyan-300 transition-colors">
-              View all →
-            </Link>
+      {/* Stats row */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+        <div className="card stat-cyan" style={{padding:'12px 14px'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <div>
+              <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>Total Calls</p>
+              <p className="num" style={{fontSize:22,fontWeight:700,color:'var(--text-1)',marginTop:2}}>{stats?.totalCalls || 0}</p>
+            </div>
+            <MiniSparkline data={sparkData} color="var(--blue)" w={48} h={18} />
+          </div>
+          <p style={{fontSize:9,color:'var(--text-5)',marginTop:4}}>{stats?.totalCallers || 0} callers active</p>
+        </div>
+        <div className="card stat-emerald" style={{padding:'12px 14px'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <div>
+              <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>Projects</p>
+              <p className="num" style={{fontSize:22,fontWeight:700,color:'var(--text-1)',marginTop:2}}>{projects.length}</p>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <p style={{fontSize:9,color:'var(--text-5)'}}>Fresh</p>
+              <p className="num" style={{fontSize:12,fontWeight:600,color:'var(--green)'}}>{freshProjects.length}</p>
+            </div>
+          </div>
+          <p style={{fontSize:9,color:'var(--text-5)',marginTop:4}}>{kolProjects.length} from KOL signals</p>
+        </div>
+        <div className="card stat-amber" style={{padding:'12px 14px'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <div>
+              <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>Smart Follow</p>
+              <p className="num" style={{fontSize:22,fontWeight:700,color:'var(--amber)',marginTop:2}}>{freshProjects.filter(p => p.smartFollowerCount > 0).length}</p>
+            </div>
+          </div>
+          <p style={{fontSize:9,color:'var(--text-5)',marginTop:4}}>KOL backed projects</p>
+        </div>
+        <div className="card stat-rose" style={{padding:'12px 14px'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <div>
+              <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600}}>24h Activity</p>
+              <p className="num" style={{fontSize:22,fontWeight:700,color:'var(--text-1)',marginTop:2}}>{stats?.last24h || 0}</p>
+            </div>
+            <MiniSparkline data={sparkData.slice(-6)} color="var(--red)" w={40} h={16} />
+          </div>
+          <p style={{fontSize:9,color:'var(--text-5)',marginTop:4}}>calls today</p>
+        </div>
+      </div>
+
+      {/* Main grid */}
+      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12}}>
+
+        {/* Left: Top Projects */}
+        <div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <h2 style={{fontSize:12,fontWeight:600,color:'var(--text-2)'}}>Top Alpha Projects</h2>
+            <Link href="/projects" style={{fontSize:11,color:'var(--accent-text)'}}>View all →</Link>
           </div>
 
           {topProjects.length === 0 ? (
-            <div className="card p-8 text-center">
-              <p className="text-zinc-500">No projects yet. Run the scraper to discover fresh projects.</p>
+            <div className="card" style={{padding:24,textAlign:'center'}}>
+              <p style={{color:'var(--text-4)',fontSize:12}}>No projects yet</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {topProjects.map(proj => (
-                <Link key={proj.id || proj.username} href="/projects"
-                  className="card p-4 hover:border-cyan-500/20 transition-all group">
-                  
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-600 to-teal-700 flex items-center justify-center text-white font-bold text-sm">
-                        {(proj.name || proj.username || '?')[0]}
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {topProjects.map((proj, idx) => {
+                const smartList = typeof proj.smartFollowers === 'string' ? proj.smartFollowers.split(',').filter(Boolean) : (proj.smartFollowers || [])
+                const hasSmart = smartList.length > 0
+                return (
+                  <Link key={proj.id || proj.username} href="/projects"
+                    className="card"
+                    style={{padding:'10px 12px',display:'flex',alignItems:'center',gap:10,transition:'border-color 60ms ease'}}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = '')}>
+                    <span className="num" style={{fontSize:10,color:'var(--text-5)',width:16,textAlign:'right'}}>{idx + 1}</span>
+                    <div className="avatar" style={{
+                      background: hasSmart ? 'var(--amber-bg)' : 'var(--bg-4)',
+                      color: hasSmart ? 'var(--amber)' : 'var(--text-3)',
+                      fontSize:10, width:24, height:24
+                    }}>
+                      {(proj.name || proj.username || '?')[0]}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}>
+                        <span style={{fontSize:12,fontWeight:500,color:'var(--text-1)'}}>{proj.name || proj.username}</span>
+                        {proj.source === 'fresh' && <span className="badge badge-green" style={{fontSize:8,padding:'0 4px'}}>FRESH</span>}
+                        {hasSmart && <span className="badge badge-amber" style={{fontSize:8,padding:'0 4px'}}>★{smartList.length}</span>}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="text-[14px] font-bold text-white">{proj.name || proj.username}</h3>
-                          {proj.source === 'fresh' && (
-                            <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">FRESH</span>
-                          )}
-                        </div>
-                        {proj.username && <p className="text-[11px] text-zinc-500">@{proj.username}</p>}
-                      </div>
+                      <p style={{fontSize:10,color:'var(--text-4)',marginTop:1}}>
+                        @{proj.username} · {proj.category || proj.stage || '—'}
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[14px] font-bold text-cyan-400">{Math.round(proj.score || 0)}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:10,color:'var(--text-4)'}}>{proj.followers ? `${(proj.followers/1000).toFixed(0)}K` : ''}</span>
+                      <span className="num" style={{fontSize:14,fontWeight:700,color:hasSmart?'var(--amber)':'var(--accent-text)',minWidth:24,textAlign:'right'}}>
+                        {Math.round(proj.score || 0)}
+                      </span>
                     </div>
-                  </div>
-
-                  <p className="text-[12px] text-zinc-400 leading-relaxed mb-2 line-clamp-2">
-                    {proj.bio || proj.description || ''}
-                  </p>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {proj.category && (
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${categoryColor[proj.category] || 'text-zinc-400 bg-zinc-500/10'}`}>
-                        {proj.category}
-                      </span>
-                    )}
-                    {proj.stage && proj.stage !== 'unknown' && (
-                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${stageColor(proj.stage)}`}>
-                        {proj.stage}
-                      </span>
-                    )}
-                    {proj.followers !== undefined && (
-                      <span className="text-[9px] text-zinc-500">
-                        {proj.followers.toLocaleString()} followers
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Smart Followers */}
-                  {proj.smartFollowers && (
-                    <div className="mt-2 flex items-center gap-1 flex-wrap">
-                      <span className="text-[9px] text-amber-400 font-bold">⭐</span>
-                      {(typeof proj.smartFollowers === 'string' ? proj.smartFollowers.split(',') : proj.smartFollowers).slice(0, 3).map((sf: string) => (
-                        <span key={sf} className="text-[9px] text-amber-400/70">
-                          @{sf.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-              ))}
+                  </Link>
+                )
+              })}
             </div>
           )}
         </div>
 
-        {/* Right: Latest KOL Signals */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-bold text-white">🎯 KOL Signals</h2>
-            <Link href="/alpha-calls" className="text-[12px] text-cyan-400 hover:text-cyan-300 transition-colors">
-              View all →
-            </Link>
+        {/* Right: Latest Calls */}
+        <div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <h2 style={{fontSize:12,fontWeight:600,color:'var(--text-2)'}}>Latest Calls</h2>
+            <Link href="/alpha-calls" style={{fontSize:11,color:'var(--accent-text)'}}>View all →</Link>
           </div>
 
-          <div className="space-y-2">
+          <div style={{display:'flex',flexDirection:'column',gap:4}}>
             {calls.slice(0, 8).map(call => {
-              const tags = call.tags ? call.tags.split(',') : []
               const pctMatch = call.content?.match(/\+?(-?[\d.]+)%/)
               const pct = pctMatch ? parseFloat(pctMatch[1]) : null
-              
+              const mcapMatch = call.content?.match(/MCap: \$?([\d,.]+[KMB]?)/)
+              const mcap = mcapMatch ? mcapMatch[1] : null
+
               return (
                 <Link key={call.id} href="/alpha-calls"
-                  className="card p-3 hover:border-cyan-500/10 transition-all flex items-center gap-3">
-                  
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-600 to-teal-700 flex items-center justify-center text-[10px] text-white font-bold flex-shrink-0">
+                  className="card"
+                  style={{padding:'8px 10px',display:'flex',alignItems:'center',gap:8,transition:'border-color 60ms ease'}}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '')}>
+                  <div className="avatar" style={{width:22,height:22,fontSize:9}}>
                     {(call.tokenName || '?')[0]}
                   </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[13px] font-bold text-white">${call.tokenName}</span>
-                      {call.chain && (
-                        <span className="text-[9px] text-zinc-500">{call.chain}</span>
-                      )}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{fontSize:11,fontWeight:600,color:'var(--text-1)'}}>${call.tokenName}</span>
+                      <span style={{fontSize:9,color:'var(--text-5)'}}>{call.chain}</span>
                     </div>
-                    <p className="text-[11px] text-zinc-500 truncate">
-                      @{call.caller?.username || 'unknown'}
+                    <p style={{fontSize:9,color:'var(--text-4)',marginTop:0}} className="truncate">
+                      @{call.caller?.username || '?'}{mcap ? ` · ${mcap}` : ''}
                     </p>
                   </div>
-
                   {pct !== null && (
-                    <span className={`text-[12px] font-bold font-mono ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <span className="num" style={{
+                      fontSize:11,fontWeight:600,
+                      color: pct >= 0 ? 'var(--green)' : 'var(--red)'
+                    }}>
                       {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
                     </span>
                   )}
@@ -218,28 +233,63 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Bottom: Quick Actions */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Link href="/projects" className="card p-4 hover:border-cyan-500/20 transition-all text-center">
-          <p className="text-2xl mb-1">🔍</p>
-          <p className="text-[13px] font-medium text-white">Discover Projects</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Find fresh alpha</p>
-        </Link>
-        <Link href="/discover/tokens" className="card p-4 hover:border-cyan-500/20 transition-all text-center">
-          <p className="text-2xl mb-1">📊</p>
-          <p className="text-[13px] font-medium text-white">Token Scanner</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">DEXScreener + scam check</p>
-        </Link>
-        <Link href="/discover/nfts" className="card p-4 hover:border-cyan-500/20 transition-all text-center">
-          <p className="text-2xl mb-1">🖼️</p>
-          <p className="text-[13px] font-medium text-white">NFT Intel</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Magic Eden + OpenSea</p>
-        </Link>
-        <Link href="/callers" className="card p-4 hover:border-cyan-500/20 transition-all text-center">
-          <p className="text-2xl mb-1">👤</p>
-          <p className="text-[13px] font-medium text-white">KOL Rankings</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Track alpha callers</p>
-        </Link>
+      {/* Bottom: Chain Distribution + Quick Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        {/* Chain distribution */}
+        <div className="card" style={{padding:'12px 14px'}}>
+          <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600,marginBottom:8}}>Chain Distribution</p>
+          <DistBar segments={chainDist.slice(0, 5).map((c: any) => ({
+            color: chainColors[c.chain] || 'var(--text-4)',
+            pct: totalChain > 0 ? (c._count / totalChain) * 100 : 0
+          }))} />
+          <div style={{display:'flex',gap:10,marginTop:8,flexWrap:'wrap'}}>
+            {chainDist.slice(0, 5).map((c: any) => (
+              <div key={c.chain} style={{display:'flex',alignItems:'center',gap:4}}>
+                <div style={{width:6,height:6,borderRadius:1,background:chainColors[c.chain] || 'var(--text-4)'}} />
+                <span style={{fontSize:9,color:'var(--text-4)'}}>{c.chain}</span>
+                <span className="num" style={{fontSize:9,color:'var(--text-3)'}}>{c._count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sentiment */}
+        <div className="card" style={{padding:'12px 14px'}}>
+          <p style={{fontSize:9,color:'var(--text-5)',textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:600,marginBottom:8}}>Sentiment</p>
+          <DistBar segments={[
+            { color: 'var(--green)', pct: totalSent > 0 ? (sentDist.find((s:any)=>s.sentiment==='bullish')?._count || 0) / totalSent * 100 : 0 },
+            { color: 'var(--red)', pct: totalSent > 0 ? (sentDist.find((s:any)=>s.sentiment==='bearish')?._count || 0) / totalSent * 100 : 0 },
+            { color: 'var(--text-4)', pct: totalSent > 0 ? (sentDist.find((s:any)=>s.sentiment==='neutral')?._count || 0) / totalSent * 100 : 0 },
+          ]} />
+          <div style={{display:'flex',gap:12,marginTop:8}}>
+            {sentDist.map((s: any) => (
+              <div key={s.sentiment} style={{display:'flex',alignItems:'center',gap:4}}>
+                <div style={{width:6,height:6,borderRadius:1,background:s.sentiment==='bullish'?'var(--green)':s.sentiment==='bearish'?'var(--red)':'var(--text-4)'}} />
+                <span style={{fontSize:9,color:'var(--text-4)'}}>{s.sentiment}</span>
+                <span className="num" style={{fontSize:9,color:'var(--text-3)'}}>{s._count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick links */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+          {[
+            { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-4-6h8"/></svg>, label: 'Tokens', href: '/discover/tokens' },
+            { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>, label: 'NFTs', href: '/discover/nfts' },
+            { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>, label: 'Callers', href: '/callers' },
+            { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>, label: 'Targets', href: '/targets' },
+          ].map(item => (
+            <Link key={item.href} href={item.href}
+              className="card"
+              style={{padding:'10px 12px',display:'flex',alignItems:'center',gap:8,transition:'border-color 60ms ease'}}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '')}>
+              <span style={{color:'var(--text-4)'}}>{item.icon}</span>
+              <span style={{fontSize:11,fontWeight:500,color:'var(--text-2)'}}>{item.label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )

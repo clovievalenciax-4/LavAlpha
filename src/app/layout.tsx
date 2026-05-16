@@ -3,7 +3,7 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "Alpha Tracker",
+  title: "LavAlpha",
   description: "Crypto intelligence — fresh projects, smart followers, on-chain data",
 };
 

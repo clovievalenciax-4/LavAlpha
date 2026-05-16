@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LavAlpha
 
-## Getting Started
+Crypto intelligence dashboard. Track alpha calls, KOL signals, and smart-follower activity across chains in one dense dashboard.
 
-First, run the development server:
+## What it does
+
+- Aggregates alpha calls from Twitter/X callers
+- Tracks new project mentions (fresh + KOL sources)
+- Surfaces smart-follower overlap on projects
+- Pulls token / NFT discovery data
+- Stores everything in SQLite via Prisma
+
+## Stack
+
+- **Frontend:** Next.js 15 App Router, React 19, Tailwind v4, TypeScript
+- **Backend:** Next.js API routes, Prisma ORM
+- **DB:** SQLite (`prisma/dev.db`)
+- **Scraper:** Python daemon (`scraper/daemon.py`) writes to the same DB
+
+## Quickstart
 
 ```bash
+# install
+npm install
+
+# generate prisma client + migrate
+npx prisma generate
+npx prisma db push
+
+# dev mode
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# production
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App runs on port 3000 by default. To use 3333:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx next start -p 3333
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project layout
 
-## Learn More
+```
+src/
+  app/                  Next.js App Router pages
+    page.tsx            Dashboard
+    projects/           Tracked projects
+    alpha-calls/        Call feed
+    callers/            KOL leaderboard
+    discover/           Token / NFT discovery
+    targets/            Watchlist
+    api/                API routes
+  components/           Shared UI
+prisma/
+  schema.prisma         DB schema
+scraper/
+  daemon.py             Python scraping daemon
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Design
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Dark mode, dense data tables, small typography (12-13px body), no neon, no purple gradients. JetBrains Mono for numbers, Inter for body. Accent: teal `#2dd4bf` used sparingly.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private. Not for redistribution yet.
